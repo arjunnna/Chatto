@@ -24,31 +24,24 @@
 
 import UIKit
 
-private struct HashableItem: Hashable {
-    private let uid: String
-    private let type: String
+extension BaseChatViewController: ChatDataSourceDelegateProtocol {
 
-    init(_ decoratedChatItem: DecoratedChatItem) {
-        self.uid = decoratedChatItem.uid
-        self.type = decoratedChatItem.chatItem.type
+    public func chatDataSourceDidUpdate(_ chatDataSource: ChatDataSourceProtocol, updateType: UpdateType) {
+        self.enqueueModelUpdate(updateType: updateType)
     }
 
-    init(_ chatItemCompanion: ChatItemCompanion) {
-        self.uid = chatItemCompanion.uid
-        self.type = chatItemCompanion.chatItem.type
+    public func chatDataSourceDidUpdate(_ chatDataSource: ChatDataSourceProtocol) {
+        self.enqueueModelUpdate(updateType: .normal)
     }
-}
 
-extension BaseChatViewController {
-
-    public func enqueueModelUpdate(updateType: UpdateType, completion: (() -> Void)? = nil) {
+    public func enqueueModelUpdate(updateType: UpdateType) {
         let newItems = self.chatDataSource?.chatItems ?? []
 
         if self.updatesConfig.coalesceUpdates {
             self.updateQueue.flushQueue()
         }
 
-        self.updateQueue.addTask({ [weak self] (runNextTask) -> Void in
+        self.updateQueue.addTask({ [weak self] (completion) -> Void in
             guard let sSelf = self else { return }
 
             let oldItems = sSelf.chatItemCompanionCollection
@@ -57,11 +50,7 @@ extension BaseChatViewController {
                 if sSelf.updateQueue.isEmpty {
                     sSelf.enqueueMessageCountReductionIfNeeded()
                 }
-                completion?()
-                DispatchQueue.main.async(execute: { () -> Void in
-                    // Reduces inconsistencies before next update: https://github.com/diegosanchezr/UICollectionViewStressing
-                    runNextTask()
-                })
+                completion()
             })
         })
     }
@@ -84,21 +73,19 @@ extension BaseChatViewController {
 
     // Returns scrolling position in interval [0, 1], 0 top, 1 bottom
     public var focusPosition: Double {
-        guard let collectionView = self.collectionView else { return 0 }
         if self.isCloseToBottom() {
             return 1
         } else if self.isCloseToTop() {
             return 0
         }
 
-        let contentHeight = collectionView.contentSize.height
+        let contentHeight = self.collectionView.contentSize.height
         guard contentHeight > 0 else {
             return 0.5
         }
 
         // Rough estimation
-        let collectionViewContentYOffset = collectionView.contentOffset.y
-        let midContentOffset = collectionViewContentYOffset + self.visibleRect().height / 2
+        let midContentOffset = self.collectionView.contentOffset.y + self.visibleRect().height / 2
         return min(max(0, Double(midContentOffset / contentHeight)), 1.0)
     }
 
@@ -119,9 +106,8 @@ extension BaseChatViewController {
 
     private func visibleCellsFromCollectionViewApi() -> [IndexPath: UICollectionViewCell] {
         var visibleCells: [IndexPath: UICollectionViewCell] = [:]
-        guard let collectionView = self.collectionView else { return visibleCells }
-        collectionView.indexPathsForVisibleItems.forEach({ (indexPath) in
-            if let cell = collectionView.cellForItem(at: indexPath) {
+        self.collectionView.indexPathsForVisibleItems.forEach({ (indexPath) in
+            if let cell = self.collectionView.cellForItem(at: indexPath) {
                 visibleCells[indexPath] = cell
             }
         })
@@ -149,10 +135,6 @@ extension BaseChatViewController {
                              changes: CollectionChanges,
                              updateType: UpdateType,
                              completion: @escaping () -> Void) {
-        guard let collectionView = self.collectionView else {
-            completion()
-            return
-        }
         let usesBatchUpdates: Bool
         do { // Recover from too fast updates...
             let visibleCellsAreValid = self.visibleCellsAreValid(changes: changes)
@@ -160,12 +142,12 @@ extension BaseChatViewController {
             let hasUnfinishedBatchUpdates = self.unfinishedBatchUpdatesCount > 0 // This can only happen when enabling self.updatesConfig.fastUpdates
 
             // a) It's unsafe to perform reloadData while there's a performBatchUpdates animating: https://github.com/diegosanchezr/UICollectionViewStressing/tree/master/GhostCells
-            // Note: using reloadSections instead reloadData is safe and might not need a delay. However, using always reloadSections causes flickering on pagination and a crash on the first layout that needs a workaround. Let's stick to reloaData for now
+            /* Note: using reloadSections instead reloadData is safe and might not need a delay. However,
+                using always reloadSections causes flickering on pagination and a crash on the first layout that needs a workaround. Let's stick to reloaData for now */
             // b) If it's a performBatchUpdates but visible cells are invalid let's wait until all finish (otherwise we would give wrong cells to presenters in updateVisibleCells)
             let mustDelayUpdate = hasUnfinishedBatchUpdates && (wantsReloadData || !visibleCellsAreValid)
             guard !mustDelayUpdate else {
                 // For reference, it is possible to force the current performBatchUpdates to finish in the next run loop, by cancelling animations:
-                // self.collectionView.subviews.forEach { $0.layer.removeAllAnimations() }
                 self.onAllBatchUpdatesFinished = { [weak self] in
                     self?.onAllBatchUpdatesFinished = nil
                     self?.performBatchUpdates(updateModelClosure: updateModelClosure, changes: changes, updateType: updateType, completion: completion)
@@ -176,7 +158,6 @@ extension BaseChatViewController {
             let mustDoReloadData = !visibleCellsAreValid // Only way to recover from this inconsistent state
             usesBatchUpdates = !wantsReloadData && !mustDoReloadData
         }
-
         let scrollAction: ScrollAction
         do { // Scroll action
             if updateType != .pagination && self.isScrolledAtBottom() {
@@ -187,28 +168,30 @@ extension BaseChatViewController {
                 scrollAction = .preservePosition(rectForReferenceIndexPathBeforeUpdate: oldRect, referenceIndexPathAfterUpdate: newReferenceIndexPath)
             }
         }
-
         let myCompletion: () -> Void
         do { // Completion
             var myCompletionExecuted = false
             myCompletion = {
-                if myCompletionExecuted { return }
+                if myCompletionExecuted {
+                    return
+                }
                 myCompletionExecuted = true
-                completion()
+                DispatchQueue.main.async(execute: { () -> Void in
+                    // Reduces inconsistencies before next update: https://github.com/diegosanchezr/UICollectionViewStressing
+                    completion()
+                })
             }
         }
-
         if usesBatchUpdates {
             UIView.animate(withDuration: self.constants.updatesAnimationDuration, animations: { () -> Void in
                 self.unfinishedBatchUpdatesCount += 1
-                collectionView.performBatchUpdates({ () -> Void in
+                self.collectionView.performBatchUpdates({ () -> Void in
                     updateModelClosure()
                     self.updateVisibleCells(changes) // For instance, to support removal of tails
-
-                    collectionView.deleteItems(at: Array(changes.deletedIndexPaths))
-                    collectionView.insertItems(at: Array(changes.insertedIndexPaths))
+                    self.collectionView.deleteItems(at: Array(changes.deletedIndexPaths))
+                    self.collectionView.insertItems(at: Array(changes.insertedIndexPaths))
                     for move in changes.movedIndexPaths {
-                        collectionView.moveItem(at: move.indexPathOld, to: move.indexPathNew)
+                        self.collectionView.moveItem(at: move.indexPathOld, to: move.indexPathNew)
                     }
                 }, completion: { [weak self] (_) -> Void in
                     defer { myCompletion() }
@@ -218,20 +201,14 @@ extension BaseChatViewController {
                         DispatchQueue.main.async(execute: onAllBatchUpdatesFinished)
                     }
                 })
-                if self.placeMessagesFromBottom {
-                    self.adjustCollectionViewInsets(shouldUpdateContentOffset: false)
-                }
             })
         } else {
             self.visibleCells = [:]
             updateModelClosure()
-            collectionView.reloadData()
-            collectionView.collectionViewLayout.prepare()
-            if self.placeMessagesFromBottom {
-                self.adjustCollectionViewInsets(shouldUpdateContentOffset: false)
-            }
+            self.collectionView.reloadData()
+            self.collectionView.collectionViewLayout.prepare()
+            scrollToBottom()
         }
-
         switch scrollAction {
         case .scrollToBottom:
             self.scrollToBottom(animated: updateType == .normal)
@@ -239,18 +216,22 @@ extension BaseChatViewController {
             let newRect = self.rectAtIndexPath(indexPath)
             self.scrollToPreservePosition(oldRefRect: oldRect, newRefRect: newRect)
         }
-
         if !usesBatchUpdates || self.updatesConfig.fastUpdates {
             myCompletion()
         }
     }
+    
+    private func scrollToBottom() {
+        
+        let lastSectionIndex = collectionView.numberOfSections - 1
+        let lastItemIndex = (collectionView?.numberOfItems(inSection: lastSectionIndex))! - 1
+         _ = IndexPath(row: lastItemIndex, section: lastSectionIndex) //(forItem: lastItemIndex, inSection: 0)
+        
+        //collectionView.scrollToItem(at: indexPath, at: UICollectionViewScrollPosition.bottom, animated: false)
+    }
 
     private func updateModels(newItems: [ChatItemProtocol], oldItems: ChatItemCompanionCollection, updateType: UpdateType, completion: @escaping () -> Void) {
-        guard let collectionView = self.collectionView else {
-            completion()
-            return
-        }
-        let collectionViewWidth = collectionView.bounds.width
+        let collectionViewWidth = self.collectionView.bounds.width
         let updateType = self.isFirstLayout ? .firstLoad : updateType
         let performInBackground = updateType != .firstLoad
 
@@ -288,8 +269,7 @@ extension BaseChatViewController {
 
     private func createModelUpdates(newItems: [ChatItemProtocol], oldItems: ChatItemCompanionCollection, collectionViewWidth: CGFloat) -> (changes: CollectionChanges, updateModelClosure: () -> Void) {
         let newDecoratedItems = self.chatItemsDecorator?.decorateItems(newItems) ?? newItems.map { DecoratedChatItem(chatItem: $0, decorationAttributes: nil) }
-        let changes = Chatto.generateChanges(oldCollection: oldItems.map(HashableItem.init),
-                                             newCollection: newDecoratedItems.map(HashableItem.init))
+        let changes = Chatto.generateChanges(oldCollection: oldItems.lazy.map { $0 }, newCollection: newDecoratedItems.lazy.map { $0 })
         let itemCompanionCollection = self.createCompanionCollection(fromChatItems: newDecoratedItems, previousCompanionCollection: oldItems)
         let layoutModel = self.createLayoutModel(itemCompanionCollection, collectionViewWidth: collectionViewWidth)
         let updateModelClosure : () -> Void = { [weak self] in
@@ -301,31 +281,26 @@ extension BaseChatViewController {
 
     private func createCompanionCollection(fromChatItems newItems: [DecoratedChatItem], previousCompanionCollection oldItems: ChatItemCompanionCollection) -> ChatItemCompanionCollection {
         return ChatItemCompanionCollection(items: newItems.map { (decoratedChatItem) -> ChatItemCompanion in
+            let chatItem = decoratedChatItem.chatItem
+            var presenter: ChatItemPresenterProtocol!
+            // We assume that a same messageId can't mutate from one cell class to a different one.
+            // If we ever need to support that then generation of changes needs to suppport reloading items.
+            // Oherwise updateVisibleCells may try to update existing cell with a new presenter which is working with a different type of cell
 
-            /*
-             We use an assumption, that message having a specific messageId never changes its type.
-             If such changes has to be supported, then generation of changes has to suppport reloading items.
-             Otherwise, updateVisibleCells may try to update the existing cells with new presenters which aren't able to work with another types.
-             */
-
-            let presenter: ChatItemPresenterProtocol = {
-                guard let oldChatItemCompanion = oldItems[decoratedChatItem.uid] ?? oldItems[decoratedChatItem.chatItem.uid],
-                    oldChatItemCompanion.chatItem.type == decoratedChatItem.chatItem.type,
-                    oldChatItemCompanion.presenter.isItemUpdateSupported else {
-                        return self.createPresenterForChatItem(decoratedChatItem.chatItem)
-                }
-
-                oldChatItemCompanion.presenter.update(with: decoratedChatItem.chatItem)
-                return oldChatItemCompanion.presenter
-            }()
-
+            // Optimization: reuse presenter if it's the same instance.
+            if let oldChatItemCompanion = oldItems[decoratedChatItem.uid], oldChatItemCompanion.chatItem === chatItem {
+                presenter = oldChatItemCompanion.presenter
+            } else {
+                presenter = self.createPresenterForChatItem(decoratedChatItem.chatItem)
+            }
             return ChatItemCompanion(uid: decoratedChatItem.uid, chatItem: decoratedChatItem.chatItem, presenter: presenter, decorationAttributes: decoratedChatItem.decorationAttributes)
         })
     }
 
+    typealias IntermediateItemLayoutData = (height: CGFloat?, bottomMargin: CGFloat)
+    typealias ItemLayoutData = (height: CGFloat, bottomMargin: CGFloat)
+
     private func createLayoutModel(_ items: ChatItemCompanionCollection, collectionViewWidth: CGFloat) -> ChatCollectionViewLayoutModel {
-        typealias IntermediateItemLayoutData = (height: CGFloat?, bottomMargin: CGFloat)
-        typealias ItemLayoutData = (height: CGFloat, bottomMargin: CGFloat)
 
         func createLayoutModel(intermediateLayoutData: [IntermediateItemLayoutData]) -> ChatCollectionViewLayoutModel {
             let layoutData = intermediateLayoutData.map { (intermediateLayoutData: IntermediateItemLayoutData) -> ItemLayoutData in
@@ -361,9 +336,8 @@ extension BaseChatViewController {
     }
 
     public func chatCollectionViewLayoutModel() -> ChatCollectionViewLayoutModel {
-        guard let collectionView = self.collectionView else { return self.layoutModel }
-        if self.layoutModel.calculatedForWidth != collectionView.bounds.width {
-            self.layoutModel = self.createLayoutModel(self.chatItemCompanionCollection, collectionViewWidth: collectionView.bounds.width)
+        if self.layoutModel.calculatedForWidth != self.collectionView.bounds.width {
+            self.layoutModel = self.createLayoutModel(self.chatItemCompanionCollection, collectionViewWidth: self.collectionView.bounds.width)
         }
         return self.layoutModel
     }

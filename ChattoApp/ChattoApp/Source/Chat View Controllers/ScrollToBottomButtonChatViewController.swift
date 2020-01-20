@@ -43,6 +43,6 @@ final class ScrollToBottomButtonChatViewController: DemoChatViewController {
 
         let endIndex = self.chatItemCompanionCollection.endIndex
         let lastItemIndex = self.chatItemCompanionCollection.index(endIndex, offsetBy: -1)
-        self.scrollToItem(withId: self.chatItemCompanionCollection[lastItemIndex].uid, position: .bottom, animated: true)
+//        self.scrollToItem(withId: self.chatItemCompanionCollection[lastItemIndex].uid, position: .bottom, animated: true)
     }
 }

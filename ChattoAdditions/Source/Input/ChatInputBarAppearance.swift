@@ -30,16 +30,15 @@ public struct ChatInputBarAppearance {
         public var insets = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
         public var title = ""
         public var titleColors: [UIControlStateWrapper: UIColor] = [
-            UIControlStateWrapper(state: .disabled): UIColor.bma_color(rgb: 0x9AA3AB),
-            UIControlStateWrapper(state: .normal): UIColor.bma_color(rgb: 0x007AFF),
-            UIControlStateWrapper(state: .highlighted): UIColor.bma_color(rgb: 0x007AFF).bma_blendWithColor(UIColor.white.withAlphaComponent(0.4))
+            UIControlStateWrapper(state: .disabled): UIColor.bmaColor(rgb: 0x9AA3AB),
+            UIControlStateWrapper(state: .normal): UIColor.bmaColor(rgb: 0x007AFF),
+            UIControlStateWrapper(state: .highlighted): UIColor.bmaColor(rgb: 0x007AFF).bmaBlendWithColor(UIColor.white.withAlphaComponent(0.4))
         ]
-        public let accessibilityIdentifier = "chatto.inputbar.button.send"
     }
 
     public struct TabBarAppearance {
         public var interItemSpacing: CGFloat = 10
-        public var height: CGFloat = 44
+        public var height: CGFloat = 50
         public var contentInsets = UIEdgeInsets(top: 0, left: 5, bottom: 0, right: 5)
     }
 
@@ -53,14 +52,15 @@ public struct ChatInputBarAppearance {
         public var placeholderColor = UIColor.gray
         public var placeholderText = ""
         public var textInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
-        public let accessibilityIdentifier = "chatto.inputbar.inputfield.text"
     }
 
     public var sendButtonAppearance = SendButtonAppearance()
     public var tabBarAppearance = TabBarAppearance()
     public var textInputAppearance = TextInputAppearance()
 
-    public init() {}
+    public init() {
+        //
+    }
 }
 
 // Workaround for SR-2223
@@ -72,8 +72,8 @@ public struct UIControlStateWrapper: Hashable {
         self.controlState = state
     }
 
-    public var hashValue: Int {
-        return self.controlState.rawValue.hashValue
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(self.controlState.rawValue.hashValue)
     }
 }
 

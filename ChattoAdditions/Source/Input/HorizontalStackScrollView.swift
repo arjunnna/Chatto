@@ -60,20 +60,24 @@ open class HorizontalStackScrollView: UIScrollView {
         for (index, view) in arrangedViews.enumerated() {
             switch index {
             case 0:
-                let constraint = NSLayoutConstraint(item: view, attribute: .leading, relatedBy: .equal, toItem: self, attribute: .leading, multiplier: 1, constant: 0)
+                let constraint = NSLayoutConstraint(item: view, attribute: .left, relatedBy: .equal,
+                                                    toItem: self, attribute: .left, multiplier: 1, constant: 0)
                 self.addConstraint(constraint)
                 self.arrangedViewContraints.append(constraint)
             case arrangedViews.count-1:
-                let constraint = NSLayoutConstraint(item: view, attribute: .trailing, relatedBy: .equal, toItem: self, attribute: .trailing, multiplier: 1, constant: 0)
+                let constraint = NSLayoutConstraint(item: view, attribute: .right, relatedBy: .equal,
+                                                    toItem: self, attribute: .right, multiplier: 1, constant: 0)
                 self.addConstraint(constraint)
                 self.arrangedViewContraints.append(constraint)
                 fallthrough
             default:
-                let constraint = NSLayoutConstraint(item: view, attribute: .leading, relatedBy: .equal, toItem: arrangedViews[index-1], attribute: .trailing, multiplier: 1, constant: self.interItemSpacing)
+                let constraint = NSLayoutConstraint(item: view, attribute: .left, relatedBy: .equal,
+                                                    toItem: arrangedViews[index-1], attribute: .right, multiplier: 1, constant: self.interItemSpacing)
                 self.addConstraint(constraint)
                 self.arrangedViewContraints.append(constraint)
             }
-            self.addConstraint(NSLayoutConstraint(item: view, attribute: .centerY, relatedBy: .equal, toItem: self, attribute: .centerY, multiplier: 1, constant: 0))
+            self.addConstraint(NSLayoutConstraint(item: view, attribute: .centerY, relatedBy: .equal,
+                                                  toItem: self, attribute: .centerY, multiplier: 1, constant: 0))
         }
     }
 }

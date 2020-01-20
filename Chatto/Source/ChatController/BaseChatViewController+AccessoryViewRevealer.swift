@@ -26,10 +26,11 @@ import Foundation
 
 public extension BaseChatViewController { // Accessory view revealer
 
-    final var accessoryViewRevealerIsEnabled: Bool {
+     final var accessoryViewRevealerIsEnabled: Bool {
         get {
             return self.accessoryViewRevealer.isEnabled
-        } set {
+        }
+        set {
             self.accessoryViewRevealer.isEnabled = newValue
         }
     }
@@ -37,9 +38,9 @@ public extension BaseChatViewController { // Accessory view revealer
     final var accessoryViewRevealerConfig: AccessoryViewRevealerConfig {
         get {
             return self.accessoryViewRevealer.config
-        } set {
+        }
+        set {
             self.accessoryViewRevealer.config = newValue
         }
     }
-
 }

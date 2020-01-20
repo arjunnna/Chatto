@@ -58,14 +58,14 @@ class DemoChatViewController: BaseChatViewController {
         appearance.sendButtonAppearance.title = NSLocalizedString("Send", comment: "")
         appearance.textInputAppearance.placeholderText = NSLocalizedString("Type a message", comment: "")
         if self.shouldUseAlternativePresenter {
-            let chatInputPresenter = ExpandableChatInputBarPresenter(
-                inputPositionController: self,
-                chatInputBar: chatInputView,
-                chatInputItems: self.createChatInputItems(),
-                chatInputBarAppearance: appearance)
-            self.chatInputPresenter = chatInputPresenter
-            self.keyboardEventsHandler = chatInputPresenter
-            self.scrollViewEventsHandler = chatInputPresenter
+//            let chatInputPresenter = ExpandableChatInputBarPresenter(
+//                inputPositionController: self,
+//                chatInputBar: chatInputView,
+//                chatInputItems: self.createChatInputItems(),
+//                chatInputBarAppearance: appearance)
+//            self.chatInputPresenter = chatInputPresenter
+//            self.keyboardEventsHandler = chatInputPresenter
+//            self.scrollViewEventsHandler = chatInputPresenter
         } else {
             self.chatInputPresenter = BasicChatInputBarPresenter(chatInputBar: chatInputView, chatInputItems: self.createChatInputItems(), chatInputBarAppearance: appearance)
         }

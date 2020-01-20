@@ -41,7 +41,9 @@ public final class SerialTaskQueue: SerialTaskQueueProtocol {
 
     private var tasksQueue = [TaskClosure]()
 
-    public init() {}
+    public init() {
+        //
+    }
 
     public func addTask(_ task: @escaping TaskClosure) {
         self.tasksQueue.append(task)
@@ -66,15 +68,13 @@ public final class SerialTaskQueue: SerialTaskQueueProtocol {
     }
 
     private func maybeExecuteNextTask() {
-        if !self.isStopped && !self.isBusy {
-            if !self.isEmpty {
-                let firstTask = self.tasksQueue.removeFirst()
-                self.isBusy = true
-                firstTask({ [weak self] () -> Void in
-                    self?.isBusy = false
-                    self?.maybeExecuteNextTask()
-                })
-            }
+        if !self.isStopped && !self.isBusy && !self.isEmpty {
+            let firstTask = self.tasksQueue.removeFirst()
+            self.isBusy = true
+            firstTask({ [weak self] () -> Void in
+                self?.isBusy = false
+                self?.maybeExecuteNextTask()
+            })
         }
     }
 }
